@@ -24,8 +24,8 @@ def get_openai_client():
 
 def get_qdrant_client():
     return QdrantClient(
-        url=env["QDRANT_URL"],
-        api_key=env["QDRANT_API_KEY"],
+        url=st.secrets["QDRANT_URL"],
+        api_key=st.secrets["QDRANT_API_KEY"],
         check_compatibility=False
     )
 
