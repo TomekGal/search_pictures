@@ -6,8 +6,6 @@ from qdrant_client.models import PointStruct, VectorParams, Distance
 import base64
 from pathlib import Path
 from PIL import Image
-from tkinter.filedialog import askdirectory, askopenfilename
-from tkinter import Tk
 import shutil
 from qdrant_client.http import models
 
@@ -114,43 +112,35 @@ if "file_name" not in st.session_state:
 if "input_path" not in st.session_state:
     st.session_state["input_path"] = []
 
-if st.button("Wybierz folder ze zdjęciami"):
-       root = Tk()
-       root.withdraw()
-       root.attributes('-topmost', True)
-       input_path=askdirectory(title='Wybierz folder', parent=root)
+input_path=st.text_input("Podaj ścieżkę folderu")
+DATA_PATH=Path(input_path)
        
-       DATA_PATH=Path(input_path)
-       
-       st.session_state["input_path"] = input_path
-       status = st.empty()
-       liczba_plikow = sum(1
-        for p in DATA_PATH.iterdir()
-        if p.is_file() and p.suffix.lower() in EXTENSIONS)
-       st.subheader(f'W folderze znajduje się {liczba_plikow} plików')
-       licznik=1
-       for file in DATA_PATH.iterdir():
-               
-                if file.suffix.lower() in EXTENSIONS:
-                    status.info(f"Przetwarzanie pliku: {file.name}. Plik {licznik} z {liczba_plikow}")
-                    files_lib.append(
-                    {"name": str(file),
-                    "description": get_image_description(file)
-                    })
-                    licznik+=1
-                              
-       if len(files_lib)==liczba_plikow:
-          status.success("Wszystkie pliki zostały przetworzone ✅") 
+st.session_state["input_path"] = input_path
+status = st.empty()
+liczba_plikow = sum(1
+    for p in DATA_PATH.iterdir()
+    if p.is_file() and p.suffix.lower() in EXTENSIONS)
+
+licznik=1
+for file in DATA_PATH.iterdir():
+        
+        if file.suffix.lower() in EXTENSIONS:
+            status.info(f"Przetwarzanie pliku: {file.name}. Plik {licznik} z {liczba_plikow}")
+            files_lib.append(
+            {"name": str(file),
+            "description": get_image_description(file)
+            })
+            licznik+=1
+st.subheader(f'W folderze znajduje się {liczba_plikow} plików')   
         
 # Add pictures to QDerant on server       
-qdrant_client=get_qdrant_client()  
-info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)            
+            
 for idx, file in enumerate(files_lib):       
                     qdrant_client.upsert(
                     collection_name=QDRANT_COLLECTION_NAME,
                     points=[
                         PointStruct(
-                            id=info.points_count+idx,
+                            id=idx,
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
