@@ -7,7 +7,7 @@ import base64
 from pathlib import Path
 import os
 from qdrant_client.http import models
-import shutil
+
 
 env=dotenv_values(".env")
 EMBEDDING_DIM=3072
@@ -45,6 +45,10 @@ def get_embeddings(text):
 def prepare_image_for_openai(uploaded_file):
         return base64.b64encode(
         uploaded_file.getvalue()).decode("utf-8")
+
+def image_to_base64(uploaded_file):
+      with open(uploaded_file, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
      
 def get_image_description(uploaded_file):
         base64_image=prepare_image_for_openai(uploaded_file)
@@ -117,26 +121,26 @@ st.session_state["input_path"] = input_path
 if uploaded_files:
     st.session_state.files_lib = []
     for uploaded_file in uploaded_files:
-               os.makedirs("images", exist_ok=True)
-               file_path=os.path.join("images", uploaded_file.name)
-               with open(file_path,"wb") as f:
-                     f.write(uploaded_file.getbuffer())
+            #    os.makedirs("images", exist_ok=True)
+            #    file_path=os.path.join("images", uploaded_file.name)
+            #    with open(file_path,"wb") as f:
+            #          f.write(uploaded_file.getbuffer())
                st.session_state.files_lib.append(
                 {"name": uploaded_file.name,
                 "description": get_image_description(uploaded_file),
-                "image_path": file_path
+                "image_base64": image_to_base64(uploaded_file)
                 })
          
 # st.session_state.uploaded_to_qdrant = True       
 # Add pictures to QDerant on server       
-      
+info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)      
 for idx, file in enumerate(st.session_state.files_lib):
                           
                     qdrant_client.upsert(
                     collection_name=QDRANT_COLLECTION_NAME,
                     points=[
                         PointStruct(
-                            id=idx,
+                            id=info.points_count+idx,
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
@@ -151,7 +155,7 @@ if st.button("Szukaj"):
             collection_name=QDRANT_COLLECTION_NAME,
             query=get_embeddings(sentence),
             limit=3,
-            with_payload=True
+           # with_payload=True
             )
            
 # show results of searching 
@@ -164,13 +168,13 @@ if st.button("Szukaj"):
 
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
-                        
-                        st.image(payload["image_path"])
-                        st.session_state["image_path"].append(payload["image_path"])
+                        img_bytes = base64.b64decode(payload["image_base64"])
+                        st.image(img_bytes)
+                        st.session_state["image_path"].append(payload["image_base64"])
                         
 
-            if len(result.points)>0:          
-                st.subheader(f"W wynikach wyszukiwania znajduje się: {len(result.points)} plików")  
+            if len(st.session_state["image_path"])>0:          
+                st.subheader(f"W wynikach wyszukiwania znajduje się: {st.session_state["image_path"]} plików")  
                 
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
