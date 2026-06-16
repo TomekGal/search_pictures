@@ -108,10 +108,14 @@ if "files_lib" not in st.session_state:
 if "image_path" not in st.session_state:
     st.session_state["image_path"] = []
 
+# if "uploaded_to_qdrant" not in st.session_state:
+#     st.session_state.uploaded_to_qdrant = False
+
 uploaded_files = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"], accept_multiple_files=True)     
 st.session_state["input_path"] = input_path
 
 if uploaded_files:
+    st.session_state.files_lib = []
     for uploaded_file in uploaded_files:
                os.makedirs("images", exist_ok=True)
                file_path=os.path.join("images", uploaded_file.name)
@@ -123,7 +127,7 @@ if uploaded_files:
                 "image_path": file_path
                 })
          
-        
+# st.session_state.uploaded_to_qdrant = True       
 # Add pictures to QDerant on server       
       
 for idx, file in enumerate(st.session_state.files_lib):
