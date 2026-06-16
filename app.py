@@ -5,9 +5,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import base64
 from pathlib import Path
-from PIL import Image
-import shutil
+import os
 from qdrant_client.http import models
+import shutil
 
 env=dotenv_values(".env")
 EMBEDDING_DIM=3072
@@ -24,8 +24,8 @@ def get_openai_client():
 
 def get_qdrant_client():
     return QdrantClient(
-        url=st.secrets["QDRANT_URL"],
-        api_key=st.secrets["QDRANT_API_KEY"],
+        url=env["QDRANT_URL"],
+        api_key=env["QDRANT_API_KEY"],
         check_compatibility=False
     )
 
@@ -42,15 +42,15 @@ def get_embeddings(text):
     
 #function for preparing images for OpenAI
 
-def prepare_image_for_openai(file_name):
-    with open(file_name, "rb") as f:
-        image_data=base64.b64encode(f.read()).decode('utf-8')
+def prepare_image_for_openai(uploaded_file):
+        return base64.b64encode(
+        uploaded_file.getvalue()).decode("utf-8")
         
-    return image_data    
+     
     
 @st.cache_data
-def get_image_description(file_name):
-        base64_image=prepare_image_for_openai(file_name)
+def get_image_description(uploaded_file):
+        base64_image=prepare_image_for_openai(uploaded_file)
         openai_client=get_openai_client()
         response=openai_client.chat.completions.create(
             model="gpt-4o",
@@ -60,7 +60,7 @@ def get_image_description(file_name):
                 {
                     "type": "text",
                     "text": """Podaj bardzo szczegółowy,
-                               wyczerpujący opis tego obrazu.
+                               wyczerpujący opis tego obrazu w języku polskim.
                                Skoncentruj się na obiektach, kolorach, akcjach, tekście i ogólnym kontekście sceny.
                                Ten opis zostanie wykorzystany do wygenerowania osadzania wyszukiwania semantycznego.""",
                 },
@@ -107,35 +107,30 @@ st.title("Aplikacja do przeszukiwania zdjęć")
 st.subheader("W tej aplikacji na podstawie wpisanej sentencji możesz wyszukać pasujące zdjęcia")
 
 files_lib=[]
-if "file_name" not in st.session_state:
-    st.session_state["file_name"] = []
-if "input_path" not in st.session_state:
-    st.session_state["input_path"] = []
 
-input_path=st.text_input("Podaj ścieżkę folderu")
-DATA_PATH=Path(input_path)
-       
+if "image_path" not in st.session_state:
+    st.session_state["image_path"] = []
+
+uploaded_files = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"], accept_multiple_files=True)     
 st.session_state["input_path"] = input_path
-status = st.empty()
-liczba_plikow = sum(1
-    for p in DATA_PATH.iterdir()
-    if p.is_file() and p.suffix.lower() in EXTENSIONS)
 
-licznik=1
-for file in DATA_PATH.iterdir():
-        
-        if file.suffix.lower() in EXTENSIONS:
-            status.info(f"Przetwarzanie pliku: {file.name}. Plik {licznik} z {liczba_plikow}")
-            files_lib.append(
-            {"name": str(file),
-            "description": get_image_description(file)
-            })
-            licznik+=1
-st.subheader(f'W folderze znajduje się {liczba_plikow} plików')   
+if uploaded_files:
+    for uploaded_file in uploaded_files:
+               os.makedirs("images", exist_ok=True)
+               file_path=os.path.join("images", uploaded_file.name)
+               with open(file_path,"wb") as f:
+                     f.write(uploaded_file.getbuffer())
+               files_lib.append(
+                {"name": uploaded_file.name,
+                "description": get_image_description(uploaded_file),
+                "image_path": file_path
+                })
+         
         
 # Add pictures to QDerant on server       
-            
-for idx, file in enumerate(files_lib):       
+      
+for idx, file in enumerate(files_lib):
+                          
                     qdrant_client.upsert(
                     collection_name=QDRANT_COLLECTION_NAME,
                     points=[
@@ -144,13 +139,12 @@ for idx, file in enumerate(files_lib):
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
-                          
-## Get sentence from user
+                
+# ## Get sentence from user
 st.session_state["input_sentence"]=st.text_input("Wpisz czego szukasz")
-         
+       
 if st.button("Szukaj"):
- @st.fragment()
- def search_picture():
+            st.session_state["image_path"]=[]  
             sentence = st.session_state["input_sentence"]
             result=qdrant_client.search(
             collection_name=QDRANT_COLLECTION_NAME,
@@ -168,43 +162,54 @@ if st.button("Szukaj"):
 
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
-                        st.image(payload["name"])
-                        st.write("Dodaję:", payload["name"])
-                        st.session_state["file_name"].append(payload["name"])
+                        
+                        st.image(payload["image_path"])
+                        st.session_state["image_path"].append(payload["image_path"])
                         
 
-            if len(st.session_state["file_name"])>0:          
-                st.subheader(f"W wynikacha wyszukiwania znajduje się: {len(st.session_state['file_name'])} plików")  
+            if len(st.session_state["image_path"])>0:          
+                st.subheader(f"W wynikach wyszukiwania znajduje się: {len(st.session_state['image_path'])} plików")  
                 
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
 
-            if len(st.session_state["file_name"])>0:   
-                if st.button("Zapisz pliki"):
-                        st.subheader(len(st.session_state["file_name"]))
-                        folder=Path(st.session_state["file_name"][0])
-                        subfolder=folder.parent / "Wyszukane obrazy"
-                        subfolder.mkdir(parents=True, exist_ok=True)             
-                        for key, value in enumerate(st.session_state["file_name"]):
-                            src=Path(value)
-                            shutil.copy2(src,subfolder)
-                            st.write(f"Zapisany plik: {src}")
+if len(st.session_state["image_path"])>0:   
+    if st.button("Zapisz pliki"):
+            
+            subfolder=Path(r"C:\Temp\Wyszukane obrazy")
+            subfolder.mkdir(parents=True, exist_ok=True) 
+            saved_files=0            
+            for value in st.session_state["image_path"]:
+                src = Path(value)
 
-            st.session_state["file_name"]=[]    
- search_picture()                           
+                if src.exists():
+                    shutil.copy2(src, subfolder)
+                    st.write(f"Zapisany plik: {src.name}")
+                    saved_files += 1
+                else:
+                    st.warning(f"Plik nie istnieje: {src}")
 
-st.subheader("Jeżeli chcesz usunąć kolekcję z bazy danych QDrant")    
-if st.button("Clear Qdrant collections"):
-     qdrant_client=get_qdrant_client() 
-     qdrant_client.delete(
-        collection_name=QDRANT_COLLECTION_NAME,
-        points_selector=models.FilterSelector(
-            filter=models.Filter()
-        )
-    )
+            if saved_files > 0:
+                st.success(f"Pliki zostały zapisane w folderze:\n{subfolder}")
+            else:
+                st.warning("Nie zapisano żadnych plików.")
+      
+            for file in files_lib:
+                path = Path(file["image_path"])
+                if path.exists():
+                   path.unlink()
+                            
+            qdrant_client=get_qdrant_client() 
+            qdrant_client.delete(
+                    collection_name=QDRANT_COLLECTION_NAME,
+                    points_selector=models.FilterSelector(
+                        filter=models.Filter()
+                    )
+                )
+            files_lib=[] 
+#st.rerun()
+
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
-
-
 if info.points_count == 0:
     st.toast("Kolekcja jest pusta", duration='long', icon='📙')
 else:
