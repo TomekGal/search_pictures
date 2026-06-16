@@ -193,7 +193,7 @@ if len(st.session_state["image_path"])>0:
                     )
                 )
             files_lib=[] 
-st.rerun()
+
 
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
 if info.points_count == 0:
