@@ -136,7 +136,7 @@ for idx, file in enumerate(files_lib):
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
-                
+files_lib=[]               
 # ## Get sentence from user
 st.session_state["input_sentence"]=st.text_input("Wpisz czego szukasz")
        
