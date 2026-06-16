@@ -168,7 +168,7 @@ if st.button("Szukaj"):
 
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
-                        img_bytes = base64.b64decode(payload["image_base64"])
+                        img_bytes = str(base64.b64decode(payload["image_base64"]))
                         st.image(img_bytes)
                         st.session_state["image_path"].append(payload["image_base64"])
                         
