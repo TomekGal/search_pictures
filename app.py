@@ -174,7 +174,7 @@ if st.button("Szukaj"):
                         
 
             if len(st.session_state["image_path"])>0:          
-                st.subheader(f"W wynikach wyszukiwania znajduje się: {st.session_state["image_path"]} plików")  
+                st.subheader(f"W wynikach wyszukiwania znajduje się: {len(st.session_state["image_path"])} plików")  
                 
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
