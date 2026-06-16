@@ -45,10 +45,6 @@ def get_embeddings(text):
 def prepare_image_for_openai(uploaded_file):
         return base64.b64encode(
         uploaded_file.getvalue()).decode("utf-8")
-
-def image_to_base64(uploaded_file):
-      with open(uploaded_file, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
      
 def get_image_description(uploaded_file):
         base64_image=prepare_image_for_openai(uploaded_file)
@@ -128,7 +124,7 @@ if uploaded_files:
                st.session_state.files_lib.append(
                 {"name": uploaded_file.name,
                 "description": get_image_description(uploaded_file),
-                "image_base64": str(image_to_base64(uploaded_file))
+                "image_base64": prepare_image_for_openai(uploaded_file)
                 })
          
 # st.session_state.uploaded_to_qdrant = True       
