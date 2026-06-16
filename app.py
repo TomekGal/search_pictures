@@ -154,7 +154,7 @@ if st.button("Szukaj"):
            
 # show results of searching 
                         
-            for point in result:
+            for point in result.points:
                     score = point.score        # Pobranie wartości score (float)
                     payload = point.payload    # Pobranie powiązanych metadanych (słownik)
                     point_id = point.id        # Pobranie ID punktu
