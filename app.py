@@ -45,9 +45,7 @@ def get_embeddings(text):
 def prepare_image_for_openai(uploaded_file):
         return base64.b64encode(
         uploaded_file.getvalue()).decode("utf-8")
-        
      
-    
 @st.cache_data
 def get_image_description(uploaded_file):
         base64_image=prepare_image_for_openai(uploaded_file)
@@ -77,7 +75,6 @@ def get_image_description(uploaded_file):
             ],
         )
         return response.choices[0].message.content
-
 
 # MAIN 
 # 
@@ -174,11 +171,8 @@ if st.button("Szukaj"):
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
 
 if len(st.session_state["image_path"])>0:   
-    if st.button("Przygotuj pliki"):
+    if st.button("Przygotuj wyszukane pliki do pobrania"):
             
-            # subfolder=Path(r"C:\Temp\Wyszukane obrazy")
-            # subfolder.mkdir(parents=True, exist_ok=True) 
-            saved_files=0            
             for value in st.session_state["image_path"]:
                 source = Path(value)
 
@@ -189,19 +183,7 @@ if len(st.session_state["image_path"])>0:
                          data=f,
                          file_name=source.name
                     )
-                    saved_files += 1
-                else:
-                    st.warning(f"Plik nie istnieje: {src}")
-
-            # if saved_files > 0:
-            #     st.success(f"Pliki zostały zapisane w folderze:\n{subfolder}")
-            # else:
-            #     st.warning("Nie zapisano żadnych plików.")
-      
-            # for file in files_lib:
-            #     path = Path(file["image_path"])
-            #     if path.exists():
-            #        path.unlink()
+                   
                             
             qdrant_client=get_qdrant_client() 
             qdrant_client.delete(
@@ -211,7 +193,7 @@ if len(st.session_state["image_path"])>0:
                     )
                 )
             files_lib=[] 
-#st.rerun()
+st.rerun()
 
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
 if info.points_count == 0:
