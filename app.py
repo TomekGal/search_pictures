@@ -46,7 +46,6 @@ def prepare_image_for_openai(uploaded_file):
         return base64.b64encode(
         uploaded_file.getvalue()).decode("utf-8")
      
-@st.cache_data
 def get_image_description(uploaded_file):
         base64_image=prepare_image_for_openai(uploaded_file)
         openai_client=get_openai_client()
@@ -103,7 +102,8 @@ if not qdrant_client.collection_exists(collection_name=QDRANT_COLLECTION_NAME):
 st.title("Aplikacja do przeszukiwania zdjęć")
 st.subheader("W tej aplikacji na podstawie wpisanej sentencji możesz wyszukać pasujące zdjęcia")
 
-files_lib=[]
+if "files_lib" not in st.session_state:
+    st.session_state.files_lib=[]
 
 if "image_path" not in st.session_state:
     st.session_state["image_path"] = []
@@ -117,16 +117,16 @@ if uploaded_files:
                file_path=os.path.join("images", uploaded_file.name)
                with open(file_path,"wb") as f:
                      f.write(uploaded_file.getbuffer())
-               files_lib.append(
+               st.session_state.files_lib.append(
                 {"name": uploaded_file.name,
                 "description": get_image_description(uploaded_file),
-                "image_path": file_path
+               # "image_path": file_path
                 })
          
         
 # Add pictures to QDerant on server       
       
-for idx, file in enumerate(files_lib):
+for idx, file in enumerate(st.session_state.files_lib):
                           
                     qdrant_client.upsert(
                     collection_name=QDRANT_COLLECTION_NAME,
@@ -136,17 +136,18 @@ for idx, file in enumerate(files_lib):
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
-files_lib=[]               
+          
 # ## Get sentence from user
 st.session_state["input_sentence"]=st.text_input("Wpisz czego szukasz")
        
 if st.button("Szukaj"):
-            st.session_state["image_path"]=[]  
+            
             sentence = st.session_state["input_sentence"]
             result=qdrant_client.query_points(
             collection_name=QDRANT_COLLECTION_NAME,
             query=get_embeddings(sentence),
             limit=3,
+            with_payload=True
             )
            
 # show results of searching 
@@ -160,18 +161,18 @@ if st.button("Szukaj"):
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
                         
-                        st.image(payload["image_path"])
+                        st.image(payload["name"])
                         st.session_state["image_path"].append(payload["image_path"])
                         
 
-            if len(st.session_state["image_path"])>0:          
-                st.subheader(f"W wynikach wyszukiwania znajduje się: {len(st.session_state['image_path'])} plików")  
+            if len(result.points)>0:          
+                st.subheader(f"W wynikach wyszukiwania znajduje się: {len(result.points)} plików")  
                 
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
 
-if len(st.session_state["image_path"])>0:   
-    if st.button("Przygotuj wyszukane pliki do pobrania"):
+#if len(st.session_state["image_path"])>0:   
+if st.button("Przygotuj wyszukane pliki do pobrania"):
             
             for value in st.session_state["image_path"]:
                 source = Path(value)
@@ -192,7 +193,7 @@ if len(st.session_state["image_path"])>0:
                         filter=models.Filter()
                     )
                 )
-            files_lib=[] 
+         
 
 
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
