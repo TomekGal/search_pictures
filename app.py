@@ -120,7 +120,7 @@ if uploaded_files:
                st.session_state.files_lib.append(
                 {"name": uploaded_file.name,
                 "description": get_image_description(uploaded_file),
-               # "image_path": file_path
+                "image_path": file_path
                 })
          
         
@@ -161,7 +161,7 @@ if st.button("Szukaj"):
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
                         
-                        st.image(payload["name"])
+                        st.image(payload["image_path"])
                         st.session_state["image_path"].append(payload["image_path"])
                         
 
