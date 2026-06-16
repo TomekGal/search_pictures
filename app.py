@@ -128,7 +128,7 @@ if uploaded_files:
                st.session_state.files_lib.append(
                 {"name": uploaded_file.name,
                 "description": get_image_description(uploaded_file),
-                "image_base64": image_to_base64(uploaded_file)
+                "image_base64": str(image_to_base64(uploaded_file))
                 })
          
 # st.session_state.uploaded_to_qdrant = True       
