@@ -174,30 +174,34 @@ if st.button("Szukaj"):
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
 
 if len(st.session_state["image_path"])>0:   
-    if st.button("Zapisz pliki"):
+    if st.button("Przygotuj pliki"):
             
-            subfolder=Path(r"C:\Temp\Wyszukane obrazy")
-            subfolder.mkdir(parents=True, exist_ok=True) 
+            # subfolder=Path(r"C:\Temp\Wyszukane obrazy")
+            # subfolder.mkdir(parents=True, exist_ok=True) 
             saved_files=0            
             for value in st.session_state["image_path"]:
-                src = Path(value)
+                source = Path(value)
 
-                if src.exists():
-                    shutil.copy2(src, subfolder)
-                    st.write(f"Zapisany plik: {src.name}")
+                if source.exists():
+                   with open(source,"rb") as f:
+                    st.download_button(
+                         label=f"Pobierz{source.name}",
+                         data=f,
+                         file_name=source.name
+                    )
                     saved_files += 1
                 else:
                     st.warning(f"Plik nie istnieje: {src}")
 
-            if saved_files > 0:
-                st.success(f"Pliki zostały zapisane w folderze:\n{subfolder}")
-            else:
-                st.warning("Nie zapisano żadnych plików.")
+            # if saved_files > 0:
+            #     st.success(f"Pliki zostały zapisane w folderze:\n{subfolder}")
+            # else:
+            #     st.warning("Nie zapisano żadnych plików.")
       
-            for file in files_lib:
-                path = Path(file["image_path"])
-                if path.exists():
-                   path.unlink()
+            # for file in files_lib:
+            #     path = Path(file["image_path"])
+            #     if path.exists():
+            #        path.unlink()
                             
             qdrant_client=get_qdrant_client() 
             qdrant_client.delete(
