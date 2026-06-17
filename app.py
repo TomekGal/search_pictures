@@ -161,7 +161,7 @@ def search_picture():
     if st.button("Szukaj"):
             st.session_state["image_path"] = []
             sentence = st.session_state["input_sentence"]
-            result=qdrant_client.search(
+            result=qdrant_client.query_points(
             collection_name=QDRANT_COLLECTION_NAME,
             query_vector=get_embeddings(sentence),
             limit=3,
