@@ -62,7 +62,7 @@ def get_image_description(uploaded_file):
                 {
                     "type": "text",
                     "text": """Podaj bardzo szczegółowy,
-                               wyczerpujący opis tego obrazu.
+                               wyczerpujący opis tego obrazu w języku polskim.
                                Skoncentruj się na obiektach, kolorach, akcjach, tekście i ogólnym kontekście sceny.
                                Ten opis zostanie wykorzystany do wygenerowania osadzania wyszukiwania semantycznego.""",
                 },
