@@ -5,8 +5,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import base64
 from pathlib import Path
-import os
 from qdrant_client.http import models
+import os
+from io import BytesIO
+import zipfile
 
 
 env=dotenv_values(".env")
@@ -43,9 +45,12 @@ def get_embeddings(text):
 #function for preparing images for OpenAI
 
 def prepare_image_for_openai(uploaded_file):
-        return base64.b64encode(
-        uploaded_file.getvalue()).decode("utf-8")
-     
+    with open(uploaded_file, "rb") as f:
+        image_data=base64.b64encode(f.read()).decode('utf-8')
+        
+    return image_data    
+    
+@st.cache_data
 def get_image_description(uploaded_file):
         base64_image=prepare_image_for_openai(uploaded_file)
         openai_client=get_openai_client()
@@ -57,7 +62,7 @@ def get_image_description(uploaded_file):
                 {
                     "type": "text",
                     "text": """Podaj bardzo szczegółowy,
-                               wyczerpujący opis tego obrazu w języku polskim.
+                               wyczerpujący opis tego obrazu.
                                Skoncentruj się na obiektach, kolorach, akcjach, tekście i ogólnym kontekście sceny.
                                Ten opis zostanie wykorzystany do wygenerowania osadzania wyszukiwania semantycznego.""",
                 },
@@ -74,6 +79,19 @@ def get_image_description(uploaded_file):
             ],
         )
         return response.choices[0].message.content
+# function to Zip files
+def create_zip(file_list):
+    buffer = BytesIO()
+
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file_path in file_list:
+            path = Path(file_path)
+
+            if path.exists():
+                zip_file.write(path, arcname=path.name)
+
+    buffer.seek(0)
+    return buffer
 
 # MAIN 
 # 
@@ -102,61 +120,56 @@ if not qdrant_client.collection_exists(collection_name=QDRANT_COLLECTION_NAME):
 st.title("Aplikacja do przeszukiwania zdjęć")
 st.subheader("W tej aplikacji na podstawie wpisanej sentencji możesz wyszukać pasujące zdjęcia")
 
-if "files_lib" not in st.session_state:
-    st.session_state.files_lib=[]
-
+files_lib=[]
+if "files_to_download" not in st.session_state:
+    st.session_state["files_to_download"] = []
 if "image_path" not in st.session_state:
     st.session_state["image_path"] = []
 
-# if "uploaded_to_qdrant" not in st.session_state:
-#     st.session_state.uploaded_to_qdrant = False
-
-uploaded_files = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"], accept_multiple_files=True)     
-st.session_state["input_path"] = input_path
-
+# Upload pictures
+uploaded_files = st.file_uploader("Upload image", type=["png", "jpg", "jpeg"], accept_multiple_files=True)  
 if uploaded_files:
-    st.session_state.files_lib = []
+    os.makedirs("images", exist_ok=True)
+    
     for uploaded_file in uploaded_files:
-            #    os.makedirs("images", exist_ok=True)
-            #    file_path=os.path.join("images", uploaded_file.name)
-            #    with open(file_path,"wb") as f:
-            #          f.write(uploaded_file.getbuffer())
-               st.session_state.files_lib.append(
+               file_path=os.path.join("images", uploaded_file.name)
+               with open(file_path,"wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                    files_lib.append(
                 {"name": uploaded_file.name,
-                "description": get_image_description(uploaded_file),
-                "image_base64": prepare_image_for_openai(uploaded_file)
+                "description": get_image_description(file_path),
+                "image_path": file_path
                 })
-         
-# st.session_state.uploaded_to_qdrant = True       
+   
+uploaded_files=[]        
 # Add pictures to QDerant on server       
-info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)      
-for idx, file in enumerate(st.session_state.files_lib):
-                          
+            
+for idx, file in enumerate(files_lib):       
                     qdrant_client.upsert(
                     collection_name=QDRANT_COLLECTION_NAME,
                     points=[
                         PointStruct(
-                            id=info.points_count+idx,
+                            id=idx,
                             vector=get_embeddings(f'{file["name"]} {file["description"]}'),
                             payload=file
                         )])
-          
-# ## Get sentence from user
+                          
+## Get sentence from user
 st.session_state["input_sentence"]=st.text_input("Wpisz czego szukasz")
-       
-if st.button("Szukaj"):
-            
+@st.fragment()
+def search_picture():         
+    if st.button("Szukaj"):
+            st.session_state["image_path"] = []
             sentence = st.session_state["input_sentence"]
-            result=qdrant_client.query_points(
+            result=qdrant_client.search(
             collection_name=QDRANT_COLLECTION_NAME,
-            query=get_embeddings(sentence),
+            query_vector=get_embeddings(sentence),
             limit=3,
-           # with_payload=True
             )
            
 # show results of searching 
                         
-            for point in result.points:
+            for point in result:
                     score = point.score        # Pobranie wartości score (float)
                     payload = point.payload    # Pobranie powiązanych metadanych (słownik)
                     point_id = point.id        # Pobranie ID punktu
@@ -164,43 +177,44 @@ if st.button("Szukaj"):
 
                     if score>0.5:
                         st.write(f"**Procent dopasowania:** {score*100:.2f}% | **Nazwa zdjęcia:** {payload['name']}")
-                        img_bytes = str(base64.b64decode(payload["image_base64"]))
-                        st.image(img_bytes)
-                        st.session_state["image_path"].append(payload["image_base64"])
+                        st.image(payload["image_path"])
+                        st.write("Dodaję:", payload["name"])
+                        st.session_state["image_path"].append(payload["image_path"])
                         
 
             if len(st.session_state["image_path"])>0:          
                 st.subheader(f"W wynikach wyszukiwania znajduje się: {len(st.session_state['image_path'])} plików")  
-                
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
+    if len(st.session_state['image_path'])>0:                           
 
-#if len(st.session_state["image_path"])>0:   
-if st.button("Przygotuj wyszukane pliki do pobrania"):
-            
-            for value in st.session_state["image_path"]:
-                source = Path(value)
+        st.subheader(f"Do pobrania są: {len(st.session_state['image_path'])} plików")
 
-                if source.exists():
-                   with open(source,"rb") as f:
-                    st.download_button(
-                         label=f"Pobierz{source.name}",
-                         data=f,
-                         file_name=source.name
-                    )
-                   
-                            
-            qdrant_client=get_qdrant_client() 
-            qdrant_client.delete(
-                    collection_name=QDRANT_COLLECTION_NAME,
-                    points_selector=models.FilterSelector(
-                        filter=models.Filter()
-                    )
-                )
-         
+        zip_buffer = create_zip(st.session_state["image_path"])
 
+        st.download_button(
+            label="📦 Pobierz wszystkie pliki (ZIP)",
+            data=zip_buffer,
+            file_name="wyniki_wyszukiwania.zip",
+            mime="application/zip",
+            key="download_zip_all"
+        )
+search_picture()            
+           
+st.session_state["image_path"]=[]
+st.subheader("Jeżeli chcesz usunąć zdjęcia z bazy danych QDrant")   
 
+if st.button("Clear Qdrant collections"):
+     qdrant_client=get_qdrant_client() 
+     qdrant_client.delete(
+        collection_name=QDRANT_COLLECTION_NAME,
+        points_selector=models.FilterSelector(
+            filter=models.Filter()
+        )
+    )
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
+
+
 if info.points_count == 0:
     st.toast("Kolekcja jest pusta", duration='long', icon='📙')
 else:
