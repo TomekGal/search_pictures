@@ -187,11 +187,7 @@ def search_picture():
             else:
                     st.write("Niestety nie znaleziono pasujących zdjęć. Zmień sentencję do wyszukiwania")
     if len(st.session_state['image_path'])>0:                           
-
-        st.subheader(f"Do pobrania są: {len(st.session_state['image_path'])} plików")
-
         zip_buffer = create_zip(st.session_state["image_path"])
-
         st.download_button(
             label="📦 Pobierz wszystkie pliki (ZIP)",
             data=zip_buffer,
@@ -212,9 +208,8 @@ if st.button("Clear Qdrant collections"):
             filter=models.Filter()
         )
     )
+     
 info = qdrant_client.get_collection(QDRANT_COLLECTION_NAME)
-
-
 if info.points_count == 0:
     st.toast("Kolekcja jest pusta", duration='long', icon='📙')
 else:
